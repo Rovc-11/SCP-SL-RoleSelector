@@ -222,6 +222,7 @@ mp save role_selection_lobby
 | `selection_duration` | Kartların açık kaldığı toplam süre (sn) | `60` |
 | `card_name_prefix` | Spawnlanan kart objelerinin isim ön eki (sadece log/debug) | `RoleCard_` |
 | `card_item_type` | Kartın fiziksel item türü | `KeycardJanitor` |
+| `card_spread_spacing` | Bir konumda birden fazla kart kopyası gerektiğinde (bkz. bölüm 3), kopyalar arasındaki mesafe (metre). Kopyalar dikey değil yatay bir ızgaraya, konumun etrafında yayılır — yüksek sayılarda (ör. 20+ DClass kartı) bile dikey bir kuleye dönüşmez. | `0.75` |
 | `research_players_per_card` | Araştırma: kaç oyuncuya 1 kart | `9` |
 | `research_minimum` | Araştırma havuzu minimum toplam | `2` |
 | `security_players_per_card` | Güvenlik: kaç oyuncuya 1 kart (bkz. bölüm 3'teki not) | `3` |

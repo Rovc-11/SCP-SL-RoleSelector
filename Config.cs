@@ -92,6 +92,15 @@ namespace RoleSelector
         public ItemType CardItemType { get; set; } = ItemType.KeycardJanitor;
 
         /// <summary>
+        /// Gets or sets bir "kartkur" konumunda birden fazla kart kopyası spawnlanınca (bkz. bölüm 3,
+        /// RoundPlanner), kopyaların birbirinden ne kadar (metre) uzağa, GENİŞ bir alana (ızgara
+        /// düzeninde, dikey değil yatay) yayılacağını belirler. Örn. bir konumda 12 DClass kartı
+        /// gerekiyorsa, hepsi tek noktada üst üste yığılmaz — bu değer kadar aralıklarla düzlemsel
+        /// bir ızgaraya yayılır, oyuncular rahatça birbirinden ayrı ayrı alabilir.
+        /// </summary>
+        public float CardSpreadSpacing { get; set; } = 0.75f;
+
+        /// <summary>
         /// Gets or sets bir oyuncu kart aldıktan sonra kartı fiziksel olarak yok edilsin mi (true) yoksa
         /// sadece pasif hale mi getirilsin (false, diğer oyuncular hâlâ görür ama alamaz).
         /// </summary>

@@ -217,10 +217,11 @@ namespace RoleSelector.Core
         /// gerçekten spawnlar. Bir konum bu turun planında (<see cref="RoundPlanner.BuildRoundPlan"/>)
         /// birden fazla kez geçebilir — bu, o konumda birden fazla kart KOPYASI spawnlanması gerektiği
         /// anlamına gelir (ör. tek bir "kartkur FacilityGuard" konumu, o tur ihtiyaç 5 ise 5 kart
-        /// üretir). Aynı konumdaki kopyalar, ilk anda tam üst üste binmesinler diye küçük bir dikey
-        /// ofsetle (küçük bir yığın gibi) spawnlanır. Her spawnlanan <see cref="Pickup"/>, hangi rolü
-        /// temsil ettiğiyle birlikte <see cref="activeCardPickups"/> içinde bellekte tutulur (isimden
-        /// çözümleme YOK).
+        /// üretir). Aynı konumdaki kopyalar üst üste yığılmaz; <see cref="Config.CardSpreadSpacing"/>
+        /// aralıklarla GENİŞ, düzlemsel bir ızgaraya (satır/sütun) yayılır — böylece 12-20 gibi yüksek
+        /// sayılarda bile kartlar dikey bir kuleye dönüşmez, oyuncular rahatça ayrı ayrı toplayabilir.
+        /// Her spawnlanan <see cref="Pickup"/>, hangi rolü temsil ettiğiyle birlikte
+        /// <see cref="activeCardPickups"/> içinde bellekte tutulur (isimden çözümleme YOK).
         /// </summary>
         private void SpawnCards(int playerCount)
         {
@@ -229,17 +230,22 @@ namespace RoleSelector.Core
             IReadOnlyList<CardSlot> allSlots = cardSlots.All;
             List<CardSlot> activated = RoundPlanner.BuildRoundPlan(allSlots, playerCount, config, out List<PoolPlanInfo> breakdown);
 
-            Dictionary<CardSlot, int> copyIndexPerSlot = new();
-            foreach (CardSlot slot in activated)
+            // Aynı konumun (referans olarak) kaç kopyaya ihtiyacı olduğunu önce grupla, sonra o
+            // konumun etrafına GENİŞ bir ızgara olarak yay. Gruplama, RoundPlanner'ın kopyaları
+            // sırayla mı yoksa round-robin ile karışık mı ürettiğine bakılmaksızın doğru çalışır.
+            foreach (IGrouping<CardSlot, CardSlot> group in activated.GroupBy(slot => slot))
             {
-                int copyIndex = copyIndexPerSlot.TryGetValue(slot, out int existing) ? existing : 0;
-                copyIndexPerSlot[slot] = copyIndex + 1;
+                CardSlot slot = group.Key;
+                int total = group.Count();
 
-                Vector3 position = slot.Position + (Vector3.up * (copyIndex * 0.12f));
+                for (int copyIndex = 0; copyIndex < total; copyIndex++)
+                {
+                    Vector3 position = slot.Position + ComputeSpreadOffset(copyIndex, total, config.CardSpreadSpacing);
 
-                Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, position);
-                pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
-                activeCardPickups[pickup] = slot.Role;
+                    Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, position);
+                    pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
+                    activeCardPickups[pickup] = slot.Role;
+                }
             }
 
             // Her tur, havuz başına hedef/kayıtlı-konum/aktif dökümünü HER ZAMAN logla (Debug açık
@@ -250,6 +256,29 @@ namespace RoleSelector.Core
             string poolSummary = string.Join(" | ", breakdown.Select(p =>
                 $"{p.Pool}: {p.ActivatedCount}/{p.Target} aktif (kayıtlı konum: {p.RegisteredCount}){(p.IsShortOnRegisteredSlots ? " !!! BU HAVUZDA UYGUN KONUM YOK, en az 1 'kartkur' kaydedin !!!" : string.Empty)}"));
             Log.Info($"[RoleSelector] {playerCount} oyuncu -> {activated.Count}/{allSlots.Count} kayıtlı kart slotu aktive edildi. {poolSummary}");
+        }
+
+        /// <summary>
+        /// Bir konumda spawnlanacak <paramref name="total"/> kopyadan <paramref name="index"/>.'sinin,
+        /// konumun merkezine göre ne kadar kayacağını hesaplar. Kopyalar dikey değil YATAY (XZ
+        /// düzleminde) bir ızgaraya, konumun etrafında ortalanmış şekilde yayılır — <paramref name="spacing"/>
+        /// aralıklarla. 1 kopya varsa ofset sıfırdır (konum aynen kullanılır, mevcut davranış bozulmaz).
+        /// </summary>
+        private static Vector3 ComputeSpreadOffset(int index, int total, float spacing)
+        {
+            if (total <= 1 || spacing <= 0f)
+                return Vector3.zero;
+
+            int columns = Mathf.CeilToInt(Mathf.Sqrt(total));
+            int rows = Mathf.CeilToInt(total / (float)columns);
+
+            int row = index / columns;
+            int col = index % columns;
+
+            float x = (col - ((columns - 1) / 2f)) * spacing;
+            float z = (row - ((rows - 1) / 2f)) * spacing;
+
+            return new Vector3(x, 0f, z);
         }
 
         /// <summary>
