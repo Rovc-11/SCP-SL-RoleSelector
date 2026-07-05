@@ -242,8 +242,17 @@ namespace RoleSelector.Core
                 {
                     Vector3 position = slot.Position + (Vector3.up * (copyIndex * config.CardStackSpacing));
 
-                    Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, position);
+                    // ÖNEMLİ: Scale, pickup SPAWN EDİLMEDEN ÖNCE ayarlanmalı. Zaten spawn edilmiş bir
+                    // pickup'ta Pickup.Scale setter'ı içeride UnSpawn+Spawn yaparak ağı yeniden
+                    // tetikliyor (Exiled.API.Features.Pickups.Pickup.Scale) — bu genelde çalışır ama
+                    // "CreateAndSpawn" ile aynı anda art arda Spawn/UnSpawn/Spawn çağırmak yerine,
+                    // objeyi önce oluşturup (Create), boyutunu ayarlayıp (henüz ağa hiç spawn
+                    // edilmediği için Scale setter'ı düz bir SetWorldScale yapıyor, respawn YOK),
+                    // sonra tek seferde spawn etmek (Spawn(position)) daha güvenilir: doğru boyut
+                    // daha ilk ağ paketinde gidiyor.
+                    Pickup pickup = Pickup.Create(config.CardItemType);
                     pickup.Scale = Vector3.one * config.CardScale;
+                    pickup.Spawn(position);
                     pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
                     activeCardPickups[pickup] = slot.Role;
                 }
