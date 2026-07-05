@@ -213,26 +213,43 @@ namespace RoleSelector.Core
         }
 
         /// <summary>
-        /// "kartkur" ile kayıtlı slotlardan, o turki oyuncu sayısına göre hesaplanan kartları gerçekten
-        /// spawnlar. Her spawnlanan <see cref="Pickup"/>, hangi rolü temsil ettiğiyle birlikte
-        /// <see cref="activeCardPickups"/> içinde bellekte tutulur (isimden çözümleme YOK).
+        /// "kartkur" ile kayıtlı KONUMLARDAN, o turki oyuncu sayısına göre hesaplanan kartları
+        /// gerçekten spawnlar. Bir konum bu turun planında (<see cref="RoundPlanner.BuildRoundPlan"/>)
+        /// birden fazla kez geçebilir — bu, o konumda birden fazla kart KOPYASI spawnlanması gerektiği
+        /// anlamına gelir (ör. tek bir "kartkur FacilityGuard" konumu, o tur ihtiyaç 5 ise 5 kart
+        /// üretir). Aynı konumdaki kopyalar, ilk anda tam üst üste binmesinler diye küçük bir dikey
+        /// ofsetle (küçük bir yığın gibi) spawnlanır. Her spawnlanan <see cref="Pickup"/>, hangi rolü
+        /// temsil ettiğiyle birlikte <see cref="activeCardPickups"/> içinde bellekte tutulur (isimden
+        /// çözümleme YOK).
         /// </summary>
         private void SpawnCards(int playerCount)
         {
             DestroyRemainingCards();
 
             IReadOnlyList<CardSlot> allSlots = cardSlots.All;
-            List<CardSlot> activated = RoundPlanner.BuildRoundPlan(allSlots, playerCount, config);
+            List<CardSlot> activated = RoundPlanner.BuildRoundPlan(allSlots, playerCount, config, out List<PoolPlanInfo> breakdown);
 
+            Dictionary<CardSlot, int> copyIndexPerSlot = new();
             foreach (CardSlot slot in activated)
             {
-                Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, slot.Position);
-                pickup.GameObject.name = $"{config.CardNamePrefix}{slot.DisplayName}";
+                int copyIndex = copyIndexPerSlot.TryGetValue(slot, out int existing) ? existing : 0;
+                copyIndexPerSlot[slot] = copyIndex + 1;
+
+                Vector3 position = slot.Position + (Vector3.up * (copyIndex * 0.12f));
+
+                Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, position);
+                pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
                 activeCardPickups[pickup] = slot.Role;
             }
 
-            if (config.Debug)
-                Log.Debug($"[RoleSelector] {playerCount} oyuncuya göre {activated.Count}/{allSlots.Count} kayıtlı kart slotu aktive edildi.");
+            // Her tur, havuz başına hedef/kayıtlı-konum/aktif dökümünü HER ZAMAN logla (Debug açık
+            // olsun olmasın) — bir havuz hedefe ulaşamadıysa (o havuzda hiç etiketsiz/uygun konum
+            // yoksa) "!!! KONUM YOK !!!" ile işaretlenir. Normalde tek bir "kartkur" konumu, o
+            // konumda kopyalanarak hedefi tek başına karşılar; bu uyarı SADECE o havuzda hiç uygun
+            // konum kayıtlı değilse çıkar.
+            string poolSummary = string.Join(" | ", breakdown.Select(p =>
+                $"{p.Pool}: {p.ActivatedCount}/{p.Target} aktif (kayıtlı konum: {p.RegisteredCount}){(p.IsShortOnRegisteredSlots ? " !!! BU HAVUZDA UYGUN KONUM YOK, en az 1 'kartkur' kaydedin !!!" : string.Empty)}"));
+            Log.Info($"[RoleSelector] {playerCount} oyuncu -> {activated.Count}/{allSlots.Count} kayıtlı kart slotu aktive edildi. {poolSummary}");
         }
 
         /// <summary>

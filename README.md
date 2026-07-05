@@ -19,16 +19,30 @@ role dönmeden önce D Sınıfı olarak atanır.
    (varsayılan: `ClassD`) atanır, seçim yapanlara seçtikleri rol verilir, kalan (alınmamış)
    kartlar yok edilir ve `mp unload` ile lobi haritası kaldırılır.
 
-## 2. Kart slotu kaydetme: `kartkur` / `kartsil` / `kartlistele`
+## 2. Kart konumu kaydetme: `kartkur` / `kartsil` / `kartlistele`
 
 Artık kartları Project Mer'in harita dosyasına elle yerleştirmenize gerek yok — plugin, siz nereye
-"buraya bir kart olsun" derseniz orada **kendisi** spawnlar. Bunun için 3 RA (Remote Admin) komutu var:
+"buraya bu rolün kartı çıksın" derseniz orada **kendisi** spawnlar. Bunun için 3 RA (Remote Admin)
+komutu var:
+
+**Önemli — bir rol için `kartkur` SADECE 1 KERE gerekir:** `kartkur` bir "kart" değil, bir **konum**
+kaydeder. O turki oyuncu sayısına göre o rolden kaç kart gerektiği hesaplanır (bkz. bölüm 3) ve
+hepsi, kaydettiğiniz TEK konumda (küçük bir yığın gibi, aralarında küçük bir dikey ofsetle) spawnlanır.
+Yani "15 kişi için 5 tane Güvenlik kartı lazım, o zaman 5 tane `kartkur FacilityGuard` çalıştırayım"
+diye düşünmenize gerek YOK — tek bir `kartkur FacilityGuard` yeterli, o konumda ihtiyaç kadar (o tur
+5 ise 5 tane) kart kendiliğinden çıkar. (İsterseniz yine de aynı rol için birden fazla konum
+kaydedebilirsiniz — ör. güvenlik kartlarını 2 farklı masaya dağıtmak isterseniz; bu durumda ihtiyaç
+konumlar arasında sırayla paylaştırılır. Ama tek konum kaydetmek tamamen yeterli ve önerilendir.)
+
+**İstisna — etiketli ("özel_isim") konumlar hiç kopyalanmaz:** Aşçı/Hademe/Baş Bilim İnsanı/Çavuş
+gibi tek/sabit bir alt-rolü temsil eden etiketli konumlardan HER ZAMAN tam 1 kart çıkar (bunlar
+zaten "bu roldeki tek kişi" anlamına geldiği için kopyalanması mantıksız olurdu).
 
 ### `kartkur <Rol> [özel_isim]`
 
-Bulunduğunuz **konumu**, verilen role bağlı bir kart slotu olarak kaydeder (konum, komutu çalıştıran
+Bulunduğunuz **konumu**, verilen role bağlı bir kart konumu olarak kaydeder (konum, komutu çalıştıran
 oyuncunun/spectator'ın o anki pozisyonundan otomatik alınır — koordinat yazmanıza gerek yok, sadece
-o noktaya gidip komutu çalıştırın). **Sadece `kartkur` ile kaydedilmiş slotlar** kart olarak spawn
+o noktaya gidip komutu çalıştırın). **Sadece `kartkur` ile kaydedilmiş konumlar** kart olarak spawn
 olabilir; harita üzerinde başka hiçbir obje otomatik kart sayılmaz.
 
 - `<Rol>`: `PlayerRoles.RoleTypeId` değeri (Scp173, Scp106, Scp096, Scp049, Scp0492, Scp939, Scp079,
@@ -47,50 +61,71 @@ GameAdmin/İzleyici için kullanabileceğiniz roller) → Serbest.
 
 Örnekler:
 ```
-kartkur Scp173                → SCP havuzu, normal SCP-173 slotu
-kartkur ClassD                → D Sınıfı havuzu, normal D Sınıfı slotu
-kartkur ClassD Asci           → D Sınıfı havuzu, "Aşçı" sabit slotu (her tur en fazla 1 aktif)
-kartkur ClassD Hademe         → D Sınıfı havuzu, "Hademe" sabit slotu
-kartkur Scientist             → Araştırma havuzu, normal Bilim İnsanı slotu
-kartkur Scientist BasBI       → Araştırma havuzu, "Baş Bilim İnsanı" sabit slotu
-kartkur NtfSergeant Cavus     → Güvenlik havuzu, "Çavuş" sabit slotu
-kartkur FacilityGuard         → Güvenlik havuzu, normal Güvenlik Personeli slotu
-kartkur Tutorial Joker1       → Serbest havuz (Joker), kota yok, her tur hep aktif
+kartkur Scp173                → SCP havuzu, SCP-173 konumu (o SCP türünden her zaman en fazla 1 aktif)
+kartkur ClassD                → D Sınıfı havuzu, normal D Sınıfı konumu (tek başına yeterli, kopyalanır)
+kartkur ClassD Asci           → D Sınıfı havuzu, "Aşçı" sabit konumu (her tur en fazla 1 aktif, HİÇ kopyalanmaz)
+kartkur ClassD Hademe         → D Sınıfı havuzu, "Hademe" sabit konumu
+kartkur Scientist             → Araştırma havuzu, normal Bilim İnsanı konumu (tek başına yeterli, kopyalanır)
+kartkur Scientist BasBI       → Araştırma havuzu, "Baş Bilim İnsanı" sabit konumu
+kartkur NtfSergeant Cavus     → Güvenlik havuzu, "Çavuş" sabit konumu
+kartkur FacilityGuard         → Güvenlik havuzu, normal Güvenlik Personeli konumu (tek başına yeterli, kopyalanır)
+kartkur Tutorial Joker1       → Serbest havuz (Joker), kota yok, her tur hep aktif (tam 1 kart)
 ```
 
-Komut size kaydedilen slotun numarasını (`#Id`), hangi havuza düştüğünü ve konumunu geri bildirir.
+Komut size kaydedilen konumun numarasını (`#Id`), hangi havuza düştüğünü ve konumunu geri bildirir.
 
 ### `kartsil <slotId>`
 
-`kartkur` ile kaydedilmiş bir slotu siler. Bir kartın **yerini değiştirmek** için: `kartsil` ile
+`kartkur` ile kaydedilmiş bir konumu siler. Bir kartın **yerini değiştirmek** için: `kartsil` ile
 eskisini silin, yeni konuma gidip tekrar `kartkur` çalıştırın.
 
 ### `kartlistele` (takma ad: `kartlar`)
 
-Kayıtlı tüm slotları (Id, havuz, rol/etiket, konum) listeler — `kartsil` için Id'lere burada
+Kayıtlı tüm konumları (Id, havuz, rol/etiket, konum) listeler — `kartsil` için Id'lere burada
 bakabilirsiniz. (Bu komut açıkça istenmedi ama `kartsil`'in pratikte kullanılabilmesi için gerekliydi, bu yüzden ekledim.)
 
-Tüm slotlar `EXILED/Configs/RoleSelector/card_slots.yml` dosyasında saklanır; sunucu yeniden
+Tüm konumlar `EXILED/Configs/RoleSelector/card_slots.yml` dosyasında saklanır; sunucu yeniden
 başlasa da kaybolmaz.
 
-## 3. Havuzlar ve kota hesaplama (her tur kaç kart aktif olur?)
+## 3. Havuzlar ve kota hesaplama (her tur kaç kart aktif olur, nereden çıkarlar?)
 
-Kayıtlı slot sayısı sabit olsa da (ör. 15 tane `FacilityGuard` slotu kaydetmiş olabilirsiniz), **her
-tur bunların hepsi spawnlanmaz** — o turki oyuncu sayısına (`N`) göre kaçının aktif olacağı
-hesaplanır; geri kalan kayıtlı slotlar o tur boş kalır (bir sonraki tur tekrar aday olurlar).
+Her tur, oyuncu sayısına (`N`) göre her havuzdan kaç kart gerektiği (hedef) hesaplanır. Bu hedef,
+o havuzun **etiketsiz (normal) konumlarına kopyalanarak** karşılanır — yani **her rol için tek bir
+`kartkur` konumu yeterlidir**, ihtiyaç kadar kart o konumda kendiliğinden çıkar. Birden fazla konum
+kaydettiyseniz (ör. güvenlik kartlarını 2 masaya yaymak istediniz), ihtiyaç aralarında sırayla
+(round-robin) paylaştırılır — kayıtlı hiçbir konum "boşta" kalmaz ya da rastgele seçilip elenmez,
+sadece SCP havuzu farklıdır (bkz. altta, orada kopyalama YOK).
 
 | Havuz | Hedef (aktif olacak toplam kart) | Notlar |
 |---|---|---|
-| **Araştırma** (Scientist) | `max(ResearchMinimum=2, ceil(N / ResearchPlayersPerCard=9))` | 1 tanesi (eğer bir "BasBI" etiketli slot kayıtlıysa) Baş Bilim İnsanı, kalanı normal. |
-| **Güvenlik** (FacilityGuard/NTF/Chaos) | `max(SecurityMinimum=2, ceil(N / SecurityPlayersPerCard=3))` | 1 tanesi (eğer bir "Cavus" etiketli slot kayıtlıysa) Çavuş, kalanı normal Güvenlik. |
-| **SCP** | Araştırma hedefine göre kademeli: `≥4 → 3`, `==3 → 2`, `≤2 → 1` | Aynı RoleTypeId'den asla 2 tane aktive edilmez. |
-| **D Sınıfı** | `max(DClassMinimum=3, N - (diğer TÜM havuzlarda aktif olan kart sayısı, Serbest dahil))` | Aşçı/Hademe (etiketli) her zaman ayrı sayılır, kalanı normal D Sınıfı doldurur. |
-| **Serbest** (Joker / Arkaplan GameAdmin / İzleyici / vb.) | Kota yok — kayıtlı **her** slot her zaman aktif | Formülsüz; sadece kaç slot kaydettiyseniz o kadar spawnlanır. |
+| **Araştırma** (Scientist) | `max(ResearchMinimum=2, ceil(N / ResearchPlayersPerCard=9))` | 1 tanesi (eğer bir "BasBI" etiketli konum kayıtlıysa) Baş Bilim İnsanı, kalanı normal konum(lar)da kopyalanarak. |
+| **Güvenlik** (FacilityGuard/NTF/Chaos) | `max(SecurityMinimum=2, ceil(N / SecurityPlayersPerCard=3))` | 1 tanesi (eğer bir "Cavus" etiketli konum kayıtlıysa) Çavuş, kalanı normal konum(lar)da kopyalanarak. |
+| **SCP** | Araştırma hedefine göre kademeli: `≥4 → 3`, `==3 → 2`, `≤2 → 1` | **Kopyalama YOK** — aynı RoleTypeId'den asla 2 tane aktive edilmez, hedefi karşılamak için o kadar FARKLI SCP türü (Scp173, Scp096, Scp049...) kayıtlı olmalı. |
+| **D Sınıfı** | `max(DClassMinimum=3, N - (diğer TÜM havuzlarda aktif olan kart sayısı, Serbest dahil))` | Aşçı/Hademe (etiketli) her zaman ayrı sayılır (kopyalanmaz), kalanı normal ClassD konum(lar)ında kopyalanarak doldurulur. |
+| **Serbest** (Joker / Arkaplan GameAdmin / İzleyici / vb.) | Kota yok — kayıtlı **her** konumdan tam 1 kart | Formülsüz, kopyalama yok; her konum zaten kendi başına tekildir. |
 
-**Etiket (özel_isim) mantığı:** Bir havuzda aynı etikete (ör. "Asci") sahip birden fazla slot
+**Etiket (özel_isim) mantığı:** Bir havuzda aynı etikete (ör. "Asci") sahip birden fazla konum
 kaydettiyseniz, o tur o etiketten **sadece 1 tanesi** rastgele seçilip aktive edilir (yedek konum
-gibi düşünebilirsiniz). SCP havuzunda etiket yerine doğrudan `RoleTypeId` gruplanır (aynı SCP
-türünden en fazla 1 aktif olur).
+gibi düşünebilirsiniz) — etiketli konumlar HİÇBİR ZAMAN kopyalanmaz. SCP havuzunda etiket yerine
+doğrudan `RoleTypeId` gruplanır (aynı SCP türünden en fazla 1 aktif olur, o da kopyalanmaz).
+
+**Bir etiket (ör. Aşçı/Hademe) hiç kayıtlı değilse ne olur?** O etiket için ayrılmış pay basitçe
+boşa gitmez — hedeften düşülmeden, geri kalan hedef aynı havuzun etiketsiz ("normal") konum(lar)ına
+kopyalanarak verilir (ör. DClass havuzunda "Asci" hiç kayıtlı değilse, o kişi normal bir ClassD
+kartına gider — kartkur ile en az 1 normal ClassD konumu kayıtlı olduğu sürece). Eğer bir havuzda
+**hiçbir uygun konum** (SCP hariç: ne etiketli ne normal) kayıtlı değilse, o havuz için hedefe
+ulaşılamaz; kart alamadan kalan oyuncular round sonunda zaten `fallback_role`'e (varsayılan
+**ClassD**) düşer — yani kimse rolsüz kalmaz, sadece "özel" bir kart yerine varsayılan role gider.
+
+**Doğrulama için:** Her tur, kart spawnlanırken sunucu logunda (Debug kapalı olsa bile) şöyle bir
+satır görürsünüz:
+```
+[RoleSelector] 15 oyuncu -> 15/4 kayıtlı kart konumu aktive edildi. Free: 0/0 aktif (kayıtlı konum: 0) | Research: 2/2 aktif (kayıtlı konum: 1) | Security: 5/5 aktif (kayıtlı konum: 1) | Scp: 1/1 aktif (kayıtlı konum: 1) | DClass: 7/7 aktif (kayıtlı konum: 1)
+```
+"Kayıtlı konum: 1" olsa bile "aktif" sayısı hedefe (`X/X`) ulaşıyorsa her şey doğru çalışıyor demektir
+— o tek konumda ihtiyaç kadar kart kopyalanmış demektir. Eğer bir havuzda "!!! BU HAVUZDA UYGUN KONUM
+YOK !!!" uyarısı görürseniz, o havuzda hiç `kartkur` çalıştırmamışsınız demektir (SCP havuzunda ise
+hedefi karşılayacak kadar FARKLI SCP türü kayıtlı değildir) — en az 1 tane kaydetmeniz yeterlidir.
 
 **⚠️ Dikkat edilmesi gereken bir nokta:** İstek metninde güvenlik oranı "1/4" olarak yazılmıştı,
 fakat verdiğiniz 45 kişilik örnekte (15 güvenlik / 45 oyuncu) oran aslında **1/3**'e karşılık
