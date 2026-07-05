@@ -93,12 +93,18 @@ namespace RoleSelector
 
         /// <summary>
         /// Gets or sets bir "kartkur" konumunda birden fazla kart kopyası spawnlanınca (bkz. bölüm 3,
-        /// RoundPlanner), kopyaların birbirinden ne kadar (metre) uzağa, GENİŞ bir alana (ızgara
-        /// düzeninde, dikey değil yatay) yayılacağını belirler. Örn. bir konumda 12 DClass kartı
-        /// gerekiyorsa, hepsi tek noktada üst üste yığılmaz — bu değer kadar aralıklarla düzlemsel
-        /// bir ızgaraya yayılır, oyuncular rahatça birbirinden ayrı ayrı alabilir.
+        /// RoundPlanner), her ek kopyanın bir öncekinin ne kadar (metre) ÜSTÜNE spawnlanacağını
+        /// belirler — kartlar dikey bir yığın/kule oluşturur (fizik motoru zaten birbirini ittirip
+        /// biraz etrafa saçacaktır, bu tamamen normaldir).
         /// </summary>
-        public float CardSpreadSpacing { get; set; } = 0.75f;
+        public float CardStackSpacing { get; set; } = 0.15f;
+
+        /// <summary>
+        /// Gets or sets spawnlanan kart pickup'larının görsel ölçeği (1 = normal boyut, 1.5 = %50
+        /// daha büyük gibi). Kartların dikkat çekmesi/daha kolay görülmesi için normalden büyük
+        /// spawnlanmasını istiyorsanız bu değeri artırın.
+        /// </summary>
+        public float CardScale { get; set; } = 1.6f;
 
         /// <summary>
         /// Gets or sets bir oyuncu kart aldıktan sonra kartı fiziksel olarak yok edilsin mi (true) yoksa

@@ -217,9 +217,9 @@ namespace RoleSelector.Core
         /// gerçekten spawnlar. Bir konum bu turun planında (<see cref="RoundPlanner.BuildRoundPlan"/>)
         /// birden fazla kez geçebilir — bu, o konumda birden fazla kart KOPYASI spawnlanması gerektiği
         /// anlamına gelir (ör. tek bir "kartkur FacilityGuard" konumu, o tur ihtiyaç 5 ise 5 kart
-        /// üretir). Aynı konumdaki kopyalar üst üste yığılmaz; <see cref="Config.CardSpreadSpacing"/>
-        /// aralıklarla GENİŞ, düzlemsel bir ızgaraya (satır/sütun) yayılır — böylece 12-20 gibi yüksek
-        /// sayılarda bile kartlar dikey bir kuleye dönüşmez, oyuncular rahatça ayrı ayrı toplayabilir.
+        /// üretir). Aynı konumdaki kopyalar <see cref="Config.CardStackSpacing"/> aralıklarla ÜST ÜSTE
+        /// (dikey bir yığın/kule gibi) spawnlanır — fizik motoru zaten birbirini ittirip etrafa biraz
+        /// saçacaktır, bu normaldir. Her kart ayrıca <see cref="Config.CardScale"/> oranında büyütülür.
         /// Her spawnlanan <see cref="Pickup"/>, hangi rolü temsil ettiğiyle birlikte
         /// <see cref="activeCardPickups"/> içinde bellekte tutulur (isimden çözümleme YOK).
         /// </summary>
@@ -231,8 +231,8 @@ namespace RoleSelector.Core
             List<CardSlot> activated = RoundPlanner.BuildRoundPlan(allSlots, playerCount, config, out List<PoolPlanInfo> breakdown);
 
             // Aynı konumun (referans olarak) kaç kopyaya ihtiyacı olduğunu önce grupla, sonra o
-            // konumun etrafına GENİŞ bir ızgara olarak yay. Gruplama, RoundPlanner'ın kopyaları
-            // sırayla mı yoksa round-robin ile karışık mı ürettiğine bakılmaksızın doğru çalışır.
+            // konumda dikey bir yığın olarak spawnla. Gruplama, RoundPlanner'ın kopyaları sırayla mı
+            // yoksa round-robin ile karışık mı ürettiğine bakılmaksızın doğru çalışır.
             foreach (IGrouping<CardSlot, CardSlot> group in activated.GroupBy(slot => slot))
             {
                 CardSlot slot = group.Key;
@@ -240,9 +240,10 @@ namespace RoleSelector.Core
 
                 for (int copyIndex = 0; copyIndex < total; copyIndex++)
                 {
-                    Vector3 position = slot.Position + ComputeSpreadOffset(copyIndex, total, config.CardSpreadSpacing);
+                    Vector3 position = slot.Position + (Vector3.up * (copyIndex * config.CardStackSpacing));
 
                     Pickup pickup = Pickup.CreateAndSpawn(config.CardItemType, position);
+                    pickup.Scale = Vector3.one * config.CardScale;
                     pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
                     activeCardPickups[pickup] = slot.Role;
                 }
@@ -256,29 +257,6 @@ namespace RoleSelector.Core
             string poolSummary = string.Join(" | ", breakdown.Select(p =>
                 $"{p.Pool}: {p.ActivatedCount}/{p.Target} aktif (kayıtlı konum: {p.RegisteredCount}){(p.IsShortOnRegisteredSlots ? " !!! BU HAVUZDA UYGUN KONUM YOK, en az 1 'kartkur' kaydedin !!!" : string.Empty)}"));
             Log.Info($"[RoleSelector] {playerCount} oyuncu -> {activated.Count}/{allSlots.Count} kayıtlı kart slotu aktive edildi. {poolSummary}");
-        }
-
-        /// <summary>
-        /// Bir konumda spawnlanacak <paramref name="total"/> kopyadan <paramref name="index"/>.'sinin,
-        /// konumun merkezine göre ne kadar kayacağını hesaplar. Kopyalar dikey değil YATAY (XZ
-        /// düzleminde) bir ızgaraya, konumun etrafında ortalanmış şekilde yayılır — <paramref name="spacing"/>
-        /// aralıklarla. 1 kopya varsa ofset sıfırdır (konum aynen kullanılır, mevcut davranış bozulmaz).
-        /// </summary>
-        private static Vector3 ComputeSpreadOffset(int index, int total, float spacing)
-        {
-            if (total <= 1 || spacing <= 0f)
-                return Vector3.zero;
-
-            int columns = Mathf.CeilToInt(Mathf.Sqrt(total));
-            int rows = Mathf.CeilToInt(total / (float)columns);
-
-            int row = index / columns;
-            int col = index % columns;
-
-            float x = (col - ((columns - 1) / 2f)) * spacing;
-            float z = (row - ((rows - 1) / 2f)) * spacing;
-
-            return new Vector3(x, 0f, z);
         }
 
         /// <summary>
