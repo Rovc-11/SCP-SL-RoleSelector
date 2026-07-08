@@ -443,8 +443,8 @@ namespace RoleSelector.Core
                     {
                         RoleTypeId.Scientist => "bilim-insanı",
                         RoleTypeId.FacilityGuard => "tesis-görevlisi",
-                        RoleTypeId.NtfCaptain => "epsilon-11-al",
-                        RoleTypeId.NtfSergeant => "epsilon-11-as",
+                        RoleTypeId.NtfCaptain => "tesis-komutanı",
+                        RoleTypeId.NtfSergeant => "tesis-çavuşu",
                         _ => null
                     };
 
