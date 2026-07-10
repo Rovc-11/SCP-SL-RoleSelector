@@ -6,6 +6,7 @@
 
 namespace RoleSelector.Core
 {
+    using System;
     using System.Collections;
     using System.Collections.Generic;
     using System.Linq;
@@ -60,9 +61,9 @@ namespace RoleSelector.Core
     {
         private readonly Config config;
         private readonly CardSlotStore cardSlots;
-        private readonly Dictionary<Player, RoleTypeId> chosenRoles = new();
+        private readonly Dictionary<Player, CardSlot> chosenRoles = new();
         private readonly HashSet<Player> playersAwaitingChoice = new();
-        private readonly Dictionary<Pickup, RoleTypeId> activeCardPickups = new();
+        private readonly Dictionary<Pickup, CardSlot> activeCardPickups = new();
         private Coroutine activeSequence;
 
         /// <summary>
@@ -150,21 +151,23 @@ namespace RoleSelector.Core
             if (!playersAwaitingChoice.Contains(player))
                 return; // zaten seçim yaptı (kart değiştirme kapalı), ya da lobi dışında biri.
 
-            if (!activeCardPickups.TryGetValue(pickup, out RoleTypeId role))
+            if (!activeCardPickups.TryGetValue(pickup, out CardSlot slot))
                 return;
 
-            chosenRoles[player] = role;
+            chosenRoles[player] = slot;
             playersAwaitingChoice.Remove(player);
             activeCardPickups.Remove(pickup);
 
             player.Role.Set(config.WaitingRole, SpawnReason.ForceClass);
-            player.ShowHint(string.Format(config.HintCardPicked, role), 6f);
+            
+            string displayName = string.IsNullOrEmpty(slot.Tag) ? slot.Role.ToString() : slot.Tag;
+            player.ShowHint(string.Format(config.HintCardPicked, displayName), 6f);
 
             if (config.DestroyCardOnPick)
                 pickup.Destroy();
 
             if (config.Debug)
-                Log.Debug($"[RoleSelector] {player.Nickname} -> {role} seçti.");
+                Log.Debug($"[RoleSelector] {player.Nickname} -> {displayName} seçti.");
         }
 
         private IEnumerator RunSequence()
@@ -254,7 +257,7 @@ namespace RoleSelector.Core
                     pickup.Scale = Vector3.one * config.CardScale;
                     pickup.Spawn(position);
                     pickup.GameObject.name = copyIndex == 0 ? $"{config.CardNamePrefix}{slot.DisplayName}" : $"{config.CardNamePrefix}{slot.DisplayName}_{copyIndex + 1}";
-                    activeCardPickups[pickup] = slot.Role;
+                    activeCardPickups[pickup] = slot;
                 }
             }
 
@@ -373,10 +376,20 @@ namespace RoleSelector.Core
                 player.ShowHint(config.HintFallbackAssigned, 6f);
             }
 
-            foreach (KeyValuePair<Player, RoleTypeId> kvp in chosenRoles)
+            foreach (KeyValuePair<Player, CardSlot> kvp in chosenRoles)
             {
-                if (kvp.Key.IsConnected)
-                    kvp.Key.Role.Set(kvp.Value, SpawnReason.RoundStart);
+                if (!kvp.Key.IsConnected)
+                    continue;
+
+                object profile = GetFlasetclassProfile(kvp.Value, out _);
+                if (profile != null)
+                {
+                    ApplyFlasetclassProfile(kvp.Key, profile);
+                }
+                else
+                {
+                    kvp.Key.Role.Set(kvp.Value.Role, SpawnReason.RoundStart);
+                }
             }
 
             playersAwaitingChoice.Clear();
@@ -387,6 +400,129 @@ namespace RoleSelector.Core
                 ProjectMerBridge.UnloadMap(config.LobbyMapName);
 
             Phase = SelectionPhase.Idle;
+        }
+
+        private object GetFlasetclassProfile(CardSlot slot, out object unitsDict)
+        {
+            unitsDict = null;
+            try
+            {
+                var flasetclassType = Type.GetType("Flasetclass.Flasetclass, Flasetclass");
+                if (flasetclassType == null)
+                    return null;
+
+                var instanceProp = flasetclassType.GetProperty("Instance", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                var instance = instanceProp?.GetValue(null);
+                if (instance == null)
+                    return null;
+
+                var configProp = flasetclassType.GetProperty("Config", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var configObj = configProp?.GetValue(instance);
+                if (configObj == null)
+                    return null;
+
+                var unitsProp = configObj.GetType().GetProperty("Units", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                unitsDict = unitsProp?.GetValue(configObj);
+
+                if (unitsDict is System.Collections.IDictionary dict)
+                {
+                    // 1) Try lookup by Tag
+                    if (!string.IsNullOrEmpty(slot.Tag))
+                    {
+                        foreach (System.Collections.DictionaryEntry entry in dict)
+                        {
+                            if (string.Equals(entry.Key as string, slot.Tag, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return entry.Value;
+                            }
+                        }
+                    }
+
+                    // 2) Try lookup by mapped RoleTypeId
+                    string mappedKey = slot.Role switch
+                    {
+                        RoleTypeId.Scientist => "bilim-insanı",
+                        RoleTypeId.FacilityGuard => "tesis-görevlisi",
+                        RoleTypeId.NtfCaptain => "tesis-komutanı",
+                        RoleTypeId.NtfSergeant => "tesis-çavuşu",
+                        _ => null
+                    };
+
+                    if (mappedKey != null)
+                    {
+                        foreach (System.Collections.DictionaryEntry entry in dict)
+                        {
+                            if (string.Equals(entry.Key as string, mappedKey, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return entry.Value;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[RoleSelector] Flasetclass profile lookup failed: {ex}");
+            }
+
+            return null;
+        }
+
+        private void ApplyFlasetclassProfile(Player player, object profile)
+        {
+            try
+            {
+                var roleProp = profile.GetType().GetProperty("Role", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var tagProp = profile.GetType().GetProperty("Tag", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var infoProp = profile.GetType().GetProperty("Info", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var itemsProp = profile.GetType().GetProperty("Items", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                var ammoProp = profile.GetType().GetProperty("Ammo", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+                RoleTypeId role = roleProp != null ? (RoleTypeId)roleProp.GetValue(profile) : RoleTypeId.None;
+                string tag = tagProp?.GetValue(profile) as string;
+                string info = infoProp?.GetValue(profile) as string;
+                var items = itemsProp?.GetValue(profile) as List<ItemType>;
+                var ammo = ammoProp?.GetValue(profile) as System.Collections.IDictionary;
+
+                if (role != RoleTypeId.None)
+                {
+                    player.Role.Set(role, SpawnReason.RoundStart);
+                }
+
+                if (!string.IsNullOrEmpty(tag))
+                {
+                    player.CustomName = $"{tag} {player.Nickname}";
+                }
+
+                if (!string.IsNullOrEmpty(info))
+                {
+                    player.CustomInfo = info;
+                }
+
+                if (items != null)
+                {
+                    player.ResetInventory(items);
+                }
+
+                if (ammo != null)
+                {
+                    player.ClearAmmo();
+                    foreach (System.Collections.DictionaryEntry entry in ammo)
+                    {
+                        try
+                        {
+                            AmmoType aType = (AmmoType)Convert.ChangeType(entry.Key, typeof(AmmoType));
+                            ushort qty = (ushort)Convert.ChangeType(entry.Value, typeof(ushort));
+                            player.SetAmmo(aType, qty);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[RoleSelector] ApplyFlasetclassProfile failed for {player.Nickname}: {ex}");
+            }
         }
     }
 }
