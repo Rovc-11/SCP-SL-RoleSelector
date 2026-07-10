@@ -60,7 +60,16 @@ namespace RoleSelector.Core
     /// </summary>
     internal static class ProjectMerBridge
     {
-        private const string AssemblyName = "ProjectMER";
+        // Sunucuda hem orijinal "ProjectMER" hem de kendi fork'umuz "FlaProjectMER" olabilir —
+        // hangisinin yüklü olduğu sunucudan sunucuya değişebilir. Bu yüzden ikisi de aranır:
+        // TAM OLARAK biri bulunursa (diğeri yoksa) o assembly kullanılır ve köprü aktif olur.
+        // Hiçbiri bulunamazsa (Project Mer hiç yüklü değil) VEYA ikisi BİRDEN bulunursa (hangisinin
+        // asıl kullanılacağı belirsiz/çakışma riski var) köprü bilerek devre dışı kalır — komutlar
+        // (mp load/save/unload, mp select, mp modify vb.) ve iç namespace/tip isimleri (ProjectMER.
+        // Features.MapUtils, ProjectMER.Features.Objects.MapEditorObject) iki DLL'de de AYNI.
+        private static readonly string[] CandidateAssemblyNames = { "FlaProjectMER", "ProjectMER" };
+
+        private static string resolvedAssemblyName;
 
         private static bool initialized;
         private static bool available;
@@ -96,7 +105,7 @@ namespace RoleSelector.Core
         {
             if (!IsAvailable)
             {
-                Log.Error("[RoleSelector] Project Mer (ProjectMER) sunucuda yüklü/etkin bulunamadı; harita yüklenemiyor.");
+                Log.Error("[RoleSelector] Project Mer (FlaProjectMER veya ProjectMER) sunucuda yüklü/etkin bulunamadı ya da her ikisi birden yüklü (çakışma); harita yüklenemiyor.");
                 return false;
             }
 
@@ -190,15 +199,28 @@ namespace RoleSelector.Core
 
             try
             {
-                Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => string.Equals(a.GetName().Name, AssemblyName, StringComparison.OrdinalIgnoreCase));
+                Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+                List<Assembly> matches = CandidateAssemblyNames
+                    .Select(name => loadedAssemblies.FirstOrDefault(a => string.Equals(a.GetName().Name, name, StringComparison.OrdinalIgnoreCase)))
+                    .Where(a => a != null)
+                    .ToList();
 
-                if (assembly == null)
+                if (matches.Count == 0)
                 {
-                    Log.Error("[RoleSelector] 'ProjectMER' assembly'si yüklü bulunamadı. Project Mer sunucuda yüklü ve etkin mi?");
+                    Log.Error($"[RoleSelector] Ne 'FlaProjectMER' ne 'ProjectMER' assembly'si yüklü bulunamadı. Project Mer sunucuda yüklü ve etkin mi?");
                     available = false;
                     return;
                 }
+
+                if (matches.Count > 1)
+                {
+                    Log.Error("[RoleSelector] Hem 'FlaProjectMER' hem 'ProjectMER' assembly'si aynı anda yüklü bulundu — hangisinin kullanılacağı belirsiz olduğundan köprü bilerek devre dışı bırakıldı. Sunucuda sadece birinin yüklü olduğundan emin olun.");
+                    available = false;
+                    return;
+                }
+
+                Assembly assembly = matches[0];
+                resolvedAssemblyName = assembly.GetName().Name;
 
                 Type mapUtilsType = assembly.GetType("ProjectMER.Features.MapUtils");
                 mapEditorObjectType = assembly.GetType("ProjectMER.Features.Objects.MapEditorObject");
@@ -222,7 +244,7 @@ namespace RoleSelector.Core
                 if (!available)
                 {
                     Log.Error(
-                        "[RoleSelector] ProjectMER bulundu ama beklenen tip/metodlar eşleşmedi (ProjectMER sürümü değişmiş olabilir): "
+                        $"[RoleSelector] '{resolvedAssemblyName}' bulundu ama beklenen tip/metodlar eşleşmedi (sürüm/fork'un iç yapısı değişmiş olabilir): "
                         + $"MapUtils={mapUtilsType != null}, MapEditorObject={mapEditorObjectType != null}, "
                         + $"LoadMap={loadMapMethod != null}, UnloadMap={unloadMapMethod != null}, Id={idProperty != null}, "
                         + $"FindObjectsByType<T>={findMapEditorObjectsMethod != null}.");
